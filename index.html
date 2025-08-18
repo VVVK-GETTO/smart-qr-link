@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Link Admin Panel</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Smart Link Admin Panel</h1>
+    <form id="generateLinkForm">
+      <input type="text" id="linkName" placeholder="Link Name" required>
+      <input type="url" id="iosUrl" placeholder="iOS App Store URL" required>
+      <input type="url" id="androidUrl" placeholder="Android Play Store URL" required>
+      <button type="submit">Generate Link</button>
+    </form>
+    <h2>Your Links</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Short Link</th>
+          <th>QR</th>
+          <th>iOS</th>
+          <th>Android</th>
+          <th>Clicks</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
+      <tbody id="linksTableBody"></tbody>
+    </table>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
