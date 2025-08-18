@@ -1,3 +1,4 @@
+// 1️⃣ PASTE your Firebase config here
 const firebaseConfig = {
  apiKey: "AIzaSyCHDfcLYGqDwUY0tuDQTiQpmP3n0EsORJU",
  authDomain: "fir-test-project-7b84e.firebaseapp.com",
@@ -11,18 +12,12 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const BASE_URL = "https://vvvk-getto.github.io/smart-qr-link/"; 
+const BASE_URL = "https://vvvk-getto.github.io/smart-qr-link/";
+
 function generateId() {
   return 'sl-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
 }
 
-function getLinks(callback) {
-  db.ref('links').once('value', snap => {
-    const val = snap.val() || {};
-    const arr = Object.keys(val).map(k => ({ id: k, ...val[k] }));
-    callback(arr);
-  });
-}
 function saveLink(link, callback) {
   db.ref('links/' + link.id).set(link, callback);
 }
@@ -30,12 +25,26 @@ function deleteLink(id, callback) {
   db.ref('links/' + id).remove(callback);
 }
 
+function getLinks(callback) {
+  db.ref('links').once('value', snap => {
+    const val = snap.val() || {};
+    const arr = Object.keys(val).map(k => ({ id: k, ...val[k] }));
+    callback(arr, val);
+  });
+}
+
 function renderLinks() {
-  getLinks(function(links) {
+  getLinks(function(links, linkMap) {
     const tbody = document.getElementById('linksTableBody');
     tbody.innerHTML = '';
     links.forEach(link => {
       const shareUrl = `${BASE_URL}/redirect.html?id=${encodeURIComponent(link.id)}`;
+      // Unique device analytics counting
+      const uniqueSet = link.uniqueDevices ? Object.values(link.uniqueDevices) : [];
+      const uniqueTotal = uniqueSet.length;
+      const uniqueAndroid = uniqueSet.filter(v => v === "android").length;
+      const uniqueIOS = uniqueSet.filter(v => v === "ios").length;
+
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${link.name}</td>
@@ -46,7 +55,12 @@ function renderLinks() {
         <td class="qrCell"></td>
         <td><a href="${link.ios}" target="_blank">iOS</a></td>
         <td><a href="${link.android}" target="_blank">Android</a></td>
-        <td>${link.clicks || 0}</td>
+        <td>${link.scans || 0}</td>
+        <td>${link.androidRedirects || 0}</td>
+        <td>${link.iosRedirects || 0}</td>
+        <td>${uniqueTotal}</td>
+        <td>${uniqueAndroid}</td>
+        <td>${uniqueIOS}</td>
         <td><button class="deleteBtn" data-id="${link.id}">Delete</button></td>
       `;
       tbody.appendChild(row);
@@ -75,19 +89,27 @@ document.getElementById('generateLinkForm').onsubmit = function(e) {
   const ios = document.getElementById('iosUrl').value.trim();
   const android = document.getElementById('androidUrl').value.trim();
   if (!name || !ios || !android) return alert('Fill all fields!');
-  const newLink = { id: generateId(), name, ios, android, clicks: 0 };
+  const newLink = {
+    id: generateId(),
+    name,
+    ios,
+    android,
+    scans: 0,
+    androidRedirects: 0,
+    iosRedirects: 0,
+    installs: 0,
+    uniqueDevices: {}
+  };
   saveLink(newLink, renderLinks);
   e.target.reset();
 };
 
 document.getElementById('linksTableBody').onclick = function(e) {
-  // Handle delete
-  if(e.target.classList.contains('deleteBtn')) {
+  if(e.target.classList.contains('deleteBtn')){
     const id = e.target.getAttribute('data-id');
     deleteLink(id, renderLinks);
   }
-  // Handle copy
-  if(e.target.classList.contains('copyBtn')) {
+  if(e.target.classList.contains('copyBtn')){
     const url = e.target.getAttribute('data-url');
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url)
@@ -98,7 +120,7 @@ document.getElementById('linksTableBody').onclick = function(e) {
     }
   }
 };
-function fallbackCopyTextToClipboard(text) {
+function fallbackCopyTextToClipboard(text){
   const tempInput = document.createElement('input');
   tempInput.style.position = 'fixed';
   tempInput.value = text;
