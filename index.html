@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Link Admin Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Link</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
@@ -11,35 +14,120 @@
   <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 </head>
 <body>
-  <main>
-    <h1>Smart Link Admin Panel</h1>
-    <form id="generateLinkForm">
-      <input type="text" id="linkName" placeholder="Link Name" required>
-      <input type="url" id="iosUrl" placeholder="iOS App Store URL" required>
-      <input type="url" id="androidUrl" placeholder="Android Play Store URL" required>
-      <button type="submit">Generate Link</button>
-    </form>
-    <h2>Your Links</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Short Link</th>
-          <th>QR</th>
-          <th>iOS</th>
-          <th>Android</th>
-          <th>Total Scans</th>
-          <th>Android Redirects</th>
-          <th>iOS Redirects</th>
-          <th>Unique Devices</th>
-          <th>Unique Android</th>
-          <th>Unique iOS</th>
-          <th>Delete</th>
-        </tr>
-      </thead>
-      <tbody id="linksTableBody"></tbody>
-    </table>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Smart Link</span>
+    </div>
+    <nav class="segmented" role="tablist" aria-label="Link type">
+      <button class="seg-btn is-active" role="tab" data-tab="app" aria-selected="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+        Dynamic App Link
+      </button>
+      <button class="seg-btn" role="tab" data-tab="web" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg>
+        Web QR
+      </button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- Create card -->
+    <section class="card create-card">
+      <div class="card-head">
+        <h1 id="createTitle">Create a dynamic app link</h1>
+        <p id="createHint">One link &amp; QR that sends Android users to Play Store and iPhone users to the App Store.</p>
+      </div>
+      <form id="createForm" autocomplete="off">
+        <div class="field">
+          <label for="linkName">Link name</label>
+          <input type="text" id="linkName" placeholder="e.g. Getto App – Poster campaign" required>
+        </div>
+        <div class="grid-2" id="appFields">
+          <div class="field">
+            <label for="iosUrl">iOS App Store URL</label>
+            <input type="url" id="iosUrl" placeholder="https://apps.apple.com/…">
+          </div>
+          <div class="field">
+            <label for="androidUrl">Android Play Store URL</label>
+            <input type="url" id="androidUrl" placeholder="https://play.google.com/store/apps/…">
+          </div>
+        </div>
+        <div class="field" id="webFields" hidden>
+          <label for="webUrl">Destination URL</label>
+          <input type="url" id="webUrl" placeholder="https://example.com/anything">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="createBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Generate link &amp; QR
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- List -->
+    <section class="list-section">
+      <div class="list-head">
+        <h2 id="listTitle">Your app links</h2>
+        <span class="count-pill" id="listCount">0</span>
+      </div>
+      <div id="linkList" class="link-list"></div>
+      <div id="emptyState" class="empty" hidden>
+        <div class="empty-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg></div>
+        <p>No links yet. Create your first one above.</p>
+      </div>
+    </section>
   </main>
+
+  <!-- Edit modal -->
+  <div class="modal-overlay" id="editModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+      <h3 id="editTitle">Edit link</h3>
+      <form id="editForm" autocomplete="off">
+        <input type="hidden" id="editId">
+        <div class="field">
+          <label for="editName">Link name</label>
+          <input type="text" id="editName" required>
+        </div>
+        <div id="editAppFields">
+          <div class="field">
+            <label for="editIos">iOS App Store URL</label>
+            <input type="url" id="editIos">
+          </div>
+          <div class="field">
+            <label for="editAndroid">Android Play Store URL</label>
+            <input type="url" id="editAndroid">
+          </div>
+        </div>
+        <div class="field" id="editWebFields" hidden>
+          <label for="editWeb">Destination URL</label>
+          <input type="url" id="editWeb">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete confirm modal -->
+  <div class="modal-overlay" id="deleteModal" hidden>
+    <div class="modal modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="deleteTitle">
+      <div class="modal-icon danger"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/></svg></div>
+      <h3 id="deleteTitle">Delete this link?</h3>
+      <p id="deleteText">The QR code and short link will stop working immediately. This can't be undone.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+        <button type="button" class="btn btn-dark" id="confirmDeleteBtn">Yes, delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

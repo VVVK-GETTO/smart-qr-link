@@ -1,65 +1,77 @@
-const firebaseConfig = {
- apiKey: "AIzaSyCHDfcLYGqDwUY0tuDQTiQpmP3n0EsORJU",
- authDomain: "fir-test-project-7b84e.firebaseapp.com",
- databaseURL: "https://fir-test-project-7b84e-default-rtdb.firebaseio.com",
- projectId: "fir-test-project-7b84e",
- storageBucket: "fir-test-project-7b84e.firebasestorage.app",
- messagingSenderId: "593405735328",
- appId: "1:593405735328:web:364d3f999efb2be43034c5"
-};
+const $ = id => document.getElementById(id);
+const MIN_LOADER_MS = 900; // keep the loader visible long enough to feel intentional, not flicker
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+function show(stage) {
+  ['loading', 'choose', 'error'].forEach(s => { $(s).hidden = s !== stage; });
+}
 
 // Generate/remember a browserId for unique devices
 function getBrowserId() {
-  let id = localStorage.getItem('smartlink_browser_id');
-  if (!id) {
-    id = 'bid_' + Math.random().toString(36).substr(2,10) + Date.now();
-    localStorage.setItem('smartlink_browser_id', id);
-  }
-  return id;
+  try {
+    let id = localStorage.getItem('smartlink_browser_id');
+    if (!id) {
+      id = 'bid_' + Math.random().toString(36).substr(2, 10) + Date.now();
+      localStorage.setItem('smartlink_browser_id', id);
+    }
+    return id;
+  } catch { return 'bid_anon'; }
 }
 
-function getQuery(param) {
-  return new URLSearchParams(window.location.search).get(param);
+function detectDevice() {
+  const ua = navigator.userAgent || navigator.vendor || '';
+  if (/android/i.test(ua)) return 'android';
+  if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return 'ios';
+  // iPadOS 13+ reports as Mac; touch support gives it away
+  if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return 'ios';
+  return 'other';
 }
-const id = getQuery('id');
+
+const id = new URLSearchParams(location.search).get('id');
 const browserId = getBrowserId();
+const device = detectDevice();
+const startedAt = Date.now();
+
+function afterMinDelay(fn) {
+  setTimeout(fn, Math.max(0, MIN_LOADER_MS - (Date.now() - startedAt)));
+}
 
 if (!id) {
-  document.getElementById('message').innerText = 'Invalid link!';
+  $('errorTitle').textContent = 'Invalid link';
+  $('errorText').textContent = 'This URL is missing a link id.';
+  show('error');
 } else {
-  db.ref('links/' + id).once('value', snap => {
+  db.ref('links/' + id).once('value').then(snap => {
     const link = snap.val();
-    if (!link) {
-      document.getElementById('message').innerText = 'Link not found or deleted!';
+    if (!link) { show('error'); return; }
+
+    const type = link.type || 'app';
+    const inc = firebase.database.ServerValue.increment(1);
+    const updates = { scans: inc };
+    if (type === 'app' && device === 'android') updates.androidRedirects = inc;
+    if (type === 'app' && device === 'ios') updates.iosRedirects = inc;
+    // Unique devices: app links only care about mobile; web links track everything
+    if (type === 'web' || device !== 'other') updates['uniqueDevices/' + browserId] = device;
+
+    const tracked = db.ref('links/' + id).update(updates).catch(() => {});
+
+    let target = null;
+    if (type === 'web') target = link.url;
+    else if (device === 'android') target = link.android;
+    else if (device === 'ios') target = link.ios;
+
+    if (target) {
+      $('loadingText').textContent = type === 'web' ? 'Opening the page' : (device === 'ios' ? 'Opening the App Store' : 'Opening Google Play');
+      tracked.then(() => afterMinDelay(() => { location.replace(target); }));
     } else {
-      // Track total scans
-      db.ref('links/' + id + '/scans').set((link.scans || 0) + 1);
-      setTimeout(() => {
-        const ua = navigator.userAgent || navigator.vendor;
-        let deviceType = '';
-        if (/android/i.test(ua)) {
-          deviceType = 'android';
-          db.ref('links/' + id + '/androidRedirects').set((link.androidRedirects || 0) + 1);
-        } else if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) {
-          deviceType = 'ios';
-          db.ref('links/' + id + '/iosRedirects').set((link.iosRedirects || 0) + 1);
-        } else { deviceType = 'other'; }
-
-        // Mark uniqueDevices
-        if (deviceType === "android" || deviceType === "ios") {
-          db.ref('links/' + id + '/uniqueDevices/' + browserId).set(deviceType);
-        }
-
-        if (deviceType === 'android') window.location.href = link.android;
-        else if (deviceType === 'ios') window.location.href = link.ios;
-        else document.getElementById('message').innerHTML =
-          '<b>Device not recognized as Android or iOS.<br>' +
-          'Use these links:</b><br>' +
-          '<a href="' + link.ios + '">iOS App Store</a> &bull; <a href="' + link.android + '">Google Play Store</a>';
-      }, 1500);
+      // App link on desktop/unknown device → let them choose
+      $('chooseTitle').textContent = link.name ? 'Get ' + link.name : 'Get the app';
+      $('iosBtn').href = link.ios || '#';
+      $('androidBtn').href = link.android || '#';
+      afterMinDelay(() => show('choose'));
     }
+  }).catch(() => {
+    $('errorTitle').textContent = 'Something went wrong';
+    $('errorText').textContent = 'Please check your connection and try again.';
+    show('error');
   });
 }
