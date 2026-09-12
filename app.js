@@ -1,6 +1,11 @@
 // Works both locally and on GitHub Pages: derive base from wherever index.html is served
 const BASE_URL = location.origin + location.pathname.replace(/[^/]*$/, '');
 
+// Admin password gate. Stored as SHA-256("smartlink:" + password), so the password isn't in the source.
+// To change it: printf 'smartlink:%s' 'NEW_PASSWORD' | shasum -a 256
+const PASSWORD_HASH = 'c16df0f92742e17af4faa6a3ea3aa89e4f4cdf6c119efe56f4345405c55ffd6c';
+const SESSION_KEY = 'smartlink_admin';
+
 const $ = id => document.getElementById(id);
 let activeTab = 'app';          // 'app' | 'web'
 let allLinks = [];              // latest snapshot from Firebase
@@ -79,13 +84,71 @@ function setTab(tab) {
 }
 document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
-/* ---------- data ---------- */
-db.ref('links').on('value', snap => {
+/* ---------- auth (password gate) ---------- */
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function showAuthError(msg) {
+  $('authError').textContent = msg;
+  $('authError').hidden = !msg;
+}
+function isUnlocked() {
+  try { return localStorage.getItem(SESSION_KEY) === PASSWORD_HASH; } catch { return false; }
+}
+
+const linksRef = db.ref('links');
+function onLinks(snap) {
   const val = snap.val() || {};
   allLinks = Object.keys(val)
     .map(k => ({ ...val[k], id: k, type: val[k].type || 'app' }))  // legacy links have no type → app
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   renderLinks();
+}
+
+function setUnlocked(on) {
+  $('authGate').hidden = on;
+  $('app').hidden = !on;
+  $('signOutBtn').hidden = !on;
+  linksRef.off('value', onLinks);
+  if (on) {
+    linksRef.on('value', onLinks);
+  } else {
+    allLinks = [];
+    renderLinks();
+    $('authPassword').focus();
+  }
+}
+
+$('authForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('authBtn');
+  btn.disabled = true;
+  showAuthError('');
+  const hash = await sha256('smartlink:' + $('authPassword').value);
+  btn.disabled = false;
+  if (hash !== PASSWORD_HASH) {
+    showAuthError('Incorrect password. Please try again.');
+    $('authPassword').select();
+    return;
+  }
+  try { localStorage.setItem(SESSION_KEY, hash); } catch {}
+  $('authPassword').value = '';
+  setUnlocked(true);
+});
+
+$('pwToggle').addEventListener('click', () => {
+  const input = $('authPassword');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  $('pwToggle').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  input.focus();
+});
+
+$('signOutBtn').addEventListener('click', () => {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  setUnlocked(false);
+  toast('Locked');
 });
 
 /* ---------- render ---------- */
@@ -246,3 +309,4 @@ document.addEventListener('keydown', e => {
 });
 
 setTab('app');
+setUnlocked(isUnlocked());

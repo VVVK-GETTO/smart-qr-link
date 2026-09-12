@@ -29,9 +29,38 @@
         Web QR
       </button>
     </nav>
+    <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" id="signOutBtn" hidden>
+        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out
+      </button>
+    </div>
   </header>
 
-  <main class="container">
+  <!-- Auth gate: shown until an admin signs in -->
+  <div class="auth-gate" id="authGate">
+    <div class="auth-card">
+      <div class="brand auth-brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">Smart Link</span></div>
+      <h1>Admin access</h1>
+      <p>Enter the admin password to manage links and QR codes.</p>
+      <form id="authForm" autocomplete="off">
+        <div class="field">
+          <label for="authPassword">Password</label>
+          <div class="pw-wrap">
+            <input type="password" id="authPassword" required autocomplete="current-password" placeholder="••••••••">
+            <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show password">
+              <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <p class="auth-error" id="authError" hidden></p>
+        <button type="submit" class="btn btn-primary btn-block" id="authBtn">
+          <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Unlock
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <main class="container" id="app" hidden>
     <!-- Create card -->
     <section class="card create-card">
       <div class="card-head">
